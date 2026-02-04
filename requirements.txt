@@ -1,8 +1,22 @@
+# Data Manipulation
 numpy>=1.26.0
 pandas
+openpyxl
+
+# Visualization
 matplotlib
 seaborn
+
+# Dashboard & Notebooks
 streamlit
 notebook
-openpyxl
+ipywidgets
+
+# Natural Language Processing (Persian)
 hazm>=0.11.0
+
+# Machine Learning & AI (Critical for Notebooks 4, 7, 8)
+scikit-learn
+torch
+transformers
+tqdm
