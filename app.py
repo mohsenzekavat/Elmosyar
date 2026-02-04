@@ -49,7 +49,15 @@ if page == "Overview":
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Score Distribution")
-        st.plotly_chart(px.histogram(df, x='rating_1', nbins=20), use_container_width=True)
+        # FIXED: labels is now inside px.histogram
+        fig_hist = px.histogram(
+            df,
+            x='rating_1',
+            nbins=20,
+            labels={'rating_1': 'Teaching Quality'}
+        )
+        st.plotly_chart(fig_hist, use_container_width=True)
+
     with c2:
         st.subheader("Grading Fairness")
 
@@ -66,13 +74,14 @@ if page == "Overview":
     st.subheader("AI Professor Segmentation")
     st.info("Professors grouped by teaching style (K-Means Clustering).")
 
+    # This part was already correct in your snippet, but keeping it for completeness
     fig_cluster = px.scatter(
         prof_profile,
         x='rating_3', y='rating_1',
         color='Cluster Name', size='comment_count',
         hover_name=prof_profile.index,
         title="Clusters: Fairness (X) vs. Quality (Y)",
-        labels={'rating_3': 'Fairness (Strict <-> Fair)', 'rating_1': 'Quality Score'},
+        labels={'rating_3': 'Fairness (Strict <-> Fair)', 'rating_1': 'Teaching Quality'},
         height=500
     )
     st.plotly_chart(fig_cluster, use_container_width=True)
@@ -82,13 +91,28 @@ if page == "Overview":
     col1, col2 = st.columns(2)
     with col1:
         if 'has_homework' in prof_profile.columns:
-            fig_hw = px.scatter(prof_profile, x='has_homework', y='rating_1', trendline="ols",
-                                title="Homework vs Score")
+            # FIXED: labels passed inside px.scatter
+            fig_hw = px.scatter(
+                prof_profile,
+                x='has_homework',
+                y='rating_1',
+                trendline="ols",
+                title="Homework vs Score",
+                labels={'has_homework': 'Homework Frequency', 'rating_1': 'Teaching Quality'}
+            )
             st.plotly_chart(fig_hw, use_container_width=True)
+
     with col2:
         if 'has_attendance' in prof_profile.columns:
-            fig_att = px.scatter(prof_profile, x='has_attendance', y='rating_1', trendline="ols",
-                                 title="Attendance vs Score")
+            # FIXED: labels passed inside px.scatter
+            fig_att = px.scatter(
+                prof_profile,
+                x='has_attendance',
+                y='rating_1',
+                trendline="ols",
+                title="Attendance vs Score",
+                labels={'has_attendance': 'Attendance Strictness', 'rating_1': 'Teaching Quality'}
+            )
             st.plotly_chart(fig_att, use_container_width=True)
 
     st.divider()
