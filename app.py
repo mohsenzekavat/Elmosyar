@@ -4,15 +4,11 @@ import plotly.express as px
 import plotly.graph_objects as go
 from backend import load_and_prep_data, build_similarity_matrix, get_hybrid_recommendation, perform_clustering, get_outliers
 
-# ---------------------------------------------------------
-# 1. SETUP
-# ---------------------------------------------------------
 st.set_page_config(page_title="Professor Intelligence", page_icon="🎓", layout="wide")
 
 
 @st.cache_data
 def get_data():
-    # Make sure this points to your file!
     df = load_and_prep_data('data/processed/sentiment_data.csv')
     if df is None: return None, None, None
     prof_profile, sim_df = build_similarity_matrix(df)
@@ -27,9 +23,6 @@ if df is None:
     st.error("Error: 'sentiment_data.csv' not found.")
     st.stop()
 
-# ---------------------------------------------------------
-# 2. NAVIGATION
-# ---------------------------------------------------------
 st.sidebar.title("Professor AI")
 page = st.sidebar.radio("Navigate", ["Overview", "Search & Filter", "Professor Profile", "Compare", "Recommender"])
 st.sidebar.divider()
@@ -49,7 +42,6 @@ if page == "Overview":
     c1, c2 = st.columns(2)
     with c1:
         st.subheader("Score Distribution")
-        # FIXED: labels is now inside px.histogram
         fig_hist = px.histogram(
             df,
             x='rating_1',
@@ -74,7 +66,6 @@ if page == "Overview":
     st.subheader("AI Professor Segmentation")
     st.info("Professors grouped by teaching style (K-Means Clustering).")
 
-    # This part was already correct in your snippet, but keeping it for completeness
     fig_cluster = px.scatter(
         prof_profile,
         x='rating_3', y='rating_1',
@@ -91,7 +82,6 @@ if page == "Overview":
     col1, col2 = st.columns(2)
     with col1:
         if 'has_homework' in prof_profile.columns:
-            # FIXED: labels passed inside px.scatter
             fig_hw = px.scatter(
                 prof_profile,
                 x='has_homework',
@@ -104,7 +94,6 @@ if page == "Overview":
 
     with col2:
         if 'has_attendance' in prof_profile.columns:
-            # FIXED: labels passed inside px.scatter
             fig_att = px.scatter(
                 prof_profile,
                 x='has_attendance',
@@ -133,12 +122,16 @@ if page == "Overview":
         st.warning("**High Risk / Polarizing**")
         st.caption("Strict Attendance + Unfair Grading + Good Teaching")
         if not polarizing.empty:
-            st.table(polarizing[['rating_1', 'rating_3', 'has_attendance']])
+            st.table(polarizing[['rating_1', 'rating_3', 'has_attendance']].rename(columns={
+                'rating_1': 'Teaching Quality',
+                'rating_3': 'Fairness',
+                'has_attendance': 'Attendance'
+            }))
         else:
             st.write("No extreme outliers found.")
 
 # ---------------------------------------------------------
-# PAGE 2: SEARCH & FILTER (UPDATED)
+# PAGE 2: SEARCH & FILTER
 # ---------------------------------------------------------
 elif page == "Search & Filter":
     st.title("Search Professors")
@@ -148,22 +141,17 @@ elif page == "Search & Filter":
     with col_sort:
         sort_opt = st.selectbox("Sort By", ["Highest Score", "Most Comments"])
 
-    # --- SIDEBAR FILTERS ---
     st.sidebar.header("Filter Options")
 
-    # 1. Basic Filters
     min_score = st.sidebar.slider("Min Score", 0.0, 10.0, 5.0)
 
-    # 2. Dept & Course Filters (NEW!)
     st.sidebar.subheader("Department & Course")
 
-    # Get unique departments safely
     all_depts = sorted(prof_profile['department'].unique().tolist()) if 'department' in prof_profile.columns else []
     dept_filter = st.sidebar.selectbox("Department", ["All"] + all_depts)
 
     course_filter = st.sidebar.text_input("Course Name", placeholder="e.g. فیزیک")
 
-    # 3. Style Filters
     st.sidebar.subheader("Teaching Style")
     p_ui = st.sidebar.radio("Project?", ["Any", "Yes", "No"])
     p_arg = True if p_ui == "Yes" else False if p_ui == "No" else None
@@ -171,7 +159,6 @@ elif page == "Search & Filter":
     h_arg = False if st.sidebar.checkbox("Avoid Heavy Homework?", False) else None
     a_arg = False if st.sidebar.checkbox("Avoid Strict Attendance?", False) else None
 
-    # --- CALL BACKEND ---
     results = get_hybrid_recommendation(
         prof_profile, sim_df,
         target_prof=None,
@@ -179,17 +166,15 @@ elif page == "Search & Filter":
         project_based=p_arg,
         heavy_homework=h_arg,
         strict_attendance=a_arg,
-        department=dept_filter,  # <--- Pass Dept
-        course_name=course_filter,  # <--- Pass Course
+        department=dept_filter,
+        course_name=course_filter,
         top_n=1000
     )
 
-    # --- DISPLAY RESULTS ---
     if results is not None and not results.empty:
-        # Local Text Search (Name Only)
-        if search_query: results = results[results.index.str.contains(search_query, case=False)]
+        if search_query:
+            results = results[results.index.str.contains(search_query, case=False)]
 
-        # Sorting
         if sort_opt == "Highest Score":
             results = results.sort_values(by="rating_1", ascending=False)
         else:
@@ -197,11 +182,26 @@ elif page == "Search & Filter":
 
         st.subheader(f"Found {len(results)} Professors")
 
-        # Select columns to display
-        cols = ['rating_1', 'rating_3', 'department', 'lesson_name', 'has_project', 'has_attendance']
-        cols = [c for c in cols if c in results.columns]
+        display_cols = ['rating_1', 'rating_3', 'department', 'lesson_name',
+                        'has_project', 'has_attendance', 'has_homework', 'score']
 
-        st.dataframe(results[cols], use_container_width=True)
+        cols_to_show = [c for c in display_cols if c in results.columns]
+
+        rename_dict = {
+            'rating_1': 'Teaching Quality',
+            'rating_3': 'Fairness',
+            'department': 'Department',
+            'lesson_name': 'Course',
+            'has_project': 'Project-Based',
+            'has_attendance': 'Attendance',
+            'has_homework': 'Homework',
+            'score': 'Match Score'
+        }
+
+        st.dataframe(
+            results[cols_to_show].rename(columns=rename_dict),
+            use_container_width=True
+        )
     else:
         st.warning("No professors found matching your filters.")
 
@@ -276,18 +276,15 @@ elif page == "Recommender":
     st.markdown("Find the perfect match for your learning style.")
 
     with st.form("rec_form"):
-        # Row 1: Target Prof + Score
         c1, c2 = st.columns(2)
         target = c1.selectbox("Similar to (Optional)", ["None"] + sorted(prof_profile.index.tolist()))
         min_r = c2.slider("Min Score", 0.0, 10.0, 7.0)
 
-        # Row 2: Department + Course
         c3, c4 = st.columns(2)
         all_depts = sorted(prof_profile['department'].unique().tolist()) if 'department' in prof_profile.columns else []
         dept_sel = c3.selectbox("Department", ["All"] + all_depts)
         course_txt = c4.text_input("Course Name (e.g. 'فیزیک')")
 
-        # Row 3: Preferences
         c5, c6, c7 = st.columns(3)
         p_pref = c5.selectbox("Project", ["Any", "Yes", "No"])
         h_pref = c6.selectbox("Homework", ["Any", "Heavy OK", "Light Only"])
@@ -308,7 +305,7 @@ elif page == "Recommender":
             if recs is not None and not recs.empty:
                 st.success(f"Found {len(recs)} matches!")
                 for name, row in recs.iterrows():
-                    with st.expander(f"🏆 {name} (Score: {row['rating_1']:.1f})", expanded=True):
+                    with st.expander(f"{name} (Score: {row['rating_1']:.1f})", expanded=True):
                         st.write(
                             f"**Dept:** {row.get('department', 'N/A')} | **Courses:** {row.get('lesson_name', 'N/A')}")
                         st.write(
